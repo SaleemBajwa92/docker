@@ -14,7 +14,7 @@ fi
 
 d/stop
 
-d/start --no-dev
+d/start
 [ $? != 0 ] && echo "Failed to start Docker services" && exit
 
 d/setup-composer-auth
