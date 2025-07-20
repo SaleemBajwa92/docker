@@ -33,7 +33,7 @@ services:
       - sockdata:/sock
     env_file:
       - env/phpfpm.env
-      - .docker/.env.local
+      - env/env.local
 
   phpfpm-xdebug:
     image: pointeger/magento-php-xdebug:8.2
@@ -44,7 +44,7 @@ services:
       - PHP_IDE_CONFIG=serverName=magento.test
     env_file:
       - env/xdebug.env
-      - .docker/.env.local
+      - env/env.local
     depends_on:
       - db
       - redis
