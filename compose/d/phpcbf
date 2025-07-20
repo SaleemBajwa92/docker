@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+d/clinotty vendor/d/phpcbf --standard=Magento2 --extensions=php,phtml --error-severity=10 --ignore-annotations "$@"

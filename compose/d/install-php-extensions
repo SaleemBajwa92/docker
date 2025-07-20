@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+if ! d/cliq ls /usr/local/d/install-php-extensions; then
+  echo "Downloading install-php-extensions, just a moment..."
+  d/rootnotty curl -sSLf \
+    -o /usr/local/d/install-php-extensions \
+    https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+  d/rootnotty chmod +x /usr/local/d/install-php-extensions
+fi
+
+d/root install-php-extensions "$@"

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+if ! d/cliq ls vendor/d/ece-patches; then
+    echo "The ece-patches tool is not installed. Please ensure you are using Adobe Commerce Cloud before running this command."
+fi
+d/cli vendor/d/ece-patches "$@"

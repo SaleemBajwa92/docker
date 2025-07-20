@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+COMPOSER_GLOBAL=/var/www/.composer-global
+CACHE_CLEAN=${COMPOSER_GLOBAL}/vendor/d/cache-clean.js
+
+if ! d/cliq ls $CACHE_CLEAN; then
+  echo "Installing devtools metapackage, just a moment..."
+  d/cliq mkdir -p ${COMPOSER_GLOBAL}
+  d/composer require --working-dir=${COMPOSER_GLOBAL} --quiet markshust/magento2-metapackage-devtools-cli:^1.0
+  echo "Devtools installed."
+fi
+
+if [ "$1" == "--watch" ]; then
+  # Kill duplicate watch process
+  WATCH_PID=$(d/clinotty ps -eaf | grep "$CACHE_CLEAN --quiet --watch" | grep -v grep | awk '{print $2}')
+  if [[ "" !=  "$WATCH_PID" ]]; then
+    d/cliq kill -9 "$WATCH_PID"
+  fi
+
+  # Run watch mode in the background
+  d/cliq $CACHE_CLEAN --quiet --watch &
+else
+  d/cli $CACHE_CLEAN "$@"
+fi

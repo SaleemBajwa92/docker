@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+d/cli vendor/d/phpstan analyse "$@"

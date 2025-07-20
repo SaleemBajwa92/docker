@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+d/clinotty vendor/d/phpcs --standard=Magento2 --extensions=php,phtml --error-severity=10 --ignore-annotations --report=json "$@" > report.json

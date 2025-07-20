@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+echo "Fixing filesystem ownerships..."
+
+if [ -z "$1" ]; then
+  d/rootnotty chown -R app:app /var/www/
+else
+  d/rootnotty chown -R app:app /var/www/html/"$1"
+fi
+
+echo "Filesystem ownerships fixed."
