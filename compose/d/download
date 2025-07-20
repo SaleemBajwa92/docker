@@ -7,6 +7,13 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+if [ -d ] && [ "$(ls -A ./src)" ]; then
+  echo "Error: The \"src\" directory is not empty. Please remove all contents within this directory and try again."
+  exit 1
+fi
+
+d/stop
+
 d/start
 [ $? != 0 ] && echo "Failed to start Docker services" && exit
 
@@ -24,6 +31,4 @@ fi
 
 if [ $? != 0 ]; then
     echo -e "${BLUE}Please check the installation guide at ${YELLOW}https://github.com/markshust/docker-magento#install-fails-because-project-directory-is-not-empty${BLUE} for troubleshooting.${NC}"
-else
-    d/clinotty [ ! -f "./var/composer_home/auth.json" ] && d/clinotty mkdir -p ./var/composer_home && d/clinotty cp /var/www/.composer/auth.json ./var/composer_home/auth.json
 fi
