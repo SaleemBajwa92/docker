@@ -32,7 +32,7 @@ services:
 
   db:
     env_file: .docker/db/.env
-    networks:
+    networks: 
       - default
     restart: always
 
