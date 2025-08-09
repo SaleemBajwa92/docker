@@ -1,28 +1,18 @@
 #!/usr/bin/env bash
-[ $# -eq 0 ] && echo "Please specify at least one domain (ex. mydomain.test)" && exit
+[ -z "$1" ] && echo "Please specify a domain (ex. mydomain.test)" && exit
 
 # Generate certificate authority if not already setup
-if ! d/docker-compose exec -T -u root app cat /root/.local/share/mkcert/rootCA.pem | grep -q 'BEGIN CERTIFICATE'; then
+if ! d/docker-compose exec -T -u root nginx cat /root/.local/share/mkcert/rootCA.pem | grep -q 'BEGIN CERTIFICATE'; then
+  echo 'executing ssl-ca command'
   d/setup-ssl-ca
 fi
 
-# Initialize an empty array to hold the processed domains
-DOMAINS_WITHOUT_PORT=()
-
-# Loop through each domain
-for domain in "$@"; do
-  # Strip out the port number
-  DOMAIN_WITHOUT_PORT=$(echo "$domain" | cut -d ':' -f1)
-  # Append the processed domain to the array
-  DOMAINS_WITHOUT_PORT+=("$DOMAIN_WITHOUT_PORT")
-done
-
-# Use the array in the mkcert command
-d/docker-compose exec -T -u root app mkcert -key-file nginx.key -cert-file nginx.crt "${DOMAINS_WITHOUT_PORT[@]}"
-
-echo "Moving key and cert to /etc/nginx/certs/..."
-d/docker-compose exec -T -u root app chown app:app nginx.key nginx.crt
-d/docker-compose exec -T -u root app mv nginx.key nginx.crt /etc/nginx/certs/
+# Generate the certificate for the specified domain
+DOMAIN_WITHOUT_PORT=$(echo "$@" | cut -d ':' -f1)
+d/docker-compose exec -T -u root nginx mkdir -p /etc/nginx/certs
+d/docker-compose exec -T -u root nginx mkcert -key-file /etc/nginx/certs/nginx.key -cert-file /etc/nginx/certs/nginx.crt "$DOMAIN_WITHOUT_PORT"
+echo "Setting ownership on /etc/nginx/certs/nginx.key and /etc/nginx/certs/nginx.crt..."
+d/docker-compose exec -T -u root nginx chown app:app /etc/nginx/certs/nginx.key /etc/nginx/certs/nginx.crt
 
 # Restart nginx to apply the updates
 echo "Restarting containers to apply updates..."

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+echo "Fixing filesystem permissions..."
+
+d/docker-compose exec -u root -T phpfpm chown -R app:app /var/www/
+
+echo "Filesystem permissions fixed."

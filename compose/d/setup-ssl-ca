@@ -1,44 +1,38 @@
 #!/usr/bin/env bash
 set -o errexit
 # Generate a new local CA "/root/.local/share/mkcert"
-d/docker-compose exec -T -u root app mkcert -install
+d/docker-compose exec -T -u root nginx mkcert -install
 
-docker cp "$(d/docker-compose ps -q app|awk '{print $1}')":/root/.local/share/mkcert/rootCA.pem .
+docker cp "$(d/docker-compose ps -q nginx|awk '{print $1}')":/root/.local/share/mkcert/rootCA.pem ssldata/rootCA.pem
 echo "System password requested to install certificate authority on host..."
 
 if [ "$(uname)" == "Darwin" ]; then
-  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.pem
-  echo "{\"policies\": {\"Certificates\": {\"ImportEnterpriseRoots\": true}}}" | sudo tee policies.json
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ssldata/rootCA.pem
 
-  FIREFOX_FOUND=0
   ### Check if Firefox is installed
-  for FFoxAppDir in \
-    '/Applications/Firefox.app' \
-    '/Applications/Firefox Developer Edition.app' \
-    ; do
+  FFoxBin="/Applications/Firefox.app/Contents/MacOS/firefox-bin"
+  if [ -f "$FFoxBin" ]; then
+    echo "{\"policies\": {\"Certificates\": {\"ImportEnterpriseRoots\": true}}}" | sudo tee policies.json
 
-    FFoxBin=$FFoxAppDir/Contents/MacOS/firefox-bin
-    if [[ -f $FFoxBin ]]; then
-      printf 'Firefox compatible found at: %s\n' "$FFoxAppDir" >&2
-      FIREFOX_FOUND=1
-
-      ### Copy the newly created policies.json to the Certificates directory
-      DistDirectory=$FFoxAppDir/Contents/Resources/distribution
+    ### Check if distribution directory exists
+    DistDirectory="/Applications/Firefox.app/Contents/Resources/distribution"
+    if [ ! -d "$DistDirectory" ]; then
       sudo mkdir -p "$DistDirectory"
-      sudo cp policies.json "$DistDirectory"/policies.json
-
     fi
-  done
+    ### Move the newly created policies.json to the Certificates directory
+    sudo mv policies.json "$DistDirectory"/policies.json
 
-  if [[ $FIREFOX_FOUND -ne 0 ]]; then
-    ### Copy the newly created .pem to the Certificates directory
-    CertDirectory='/Library/Application Support/Mozilla/Certificates'
-    printf 'Installing CA certificate to: %s\n' "$CertDirectory" >&2
-    sudo mkdir -p "$CertDirectory"
-    sudo cp rootCA.pem "$CertDirectory"/rootCA.pem
+    ### Check if Certificates directory exists
+    CertDirectory="/Library/Application Support/Mozilla/Certificates"
+    if [ ! -d "$CertDirectory" ]; then
+      sudo mkdir -p "$CertDirectory"
+    fi
+
+    ### Move the newly created .pem to the Certificates directory
+    sudo mv ssldata/rootCA.pem "$CertDirectory"/rootCA.pem
+  else
+    sudo rm ssldata/rootCA.pem
   fi
-
-  rm -f policies.json rootCA.pem
 
 else
 
@@ -71,6 +65,7 @@ else
       certutil -A -n "${certname}" -t "TCu,Cu,Tu" -i ${certfile} -d sql:"${certdir}"
   done
 
-  sudo mv rootCA.pem /usr/local/share/ca-certificates/rootCA.crt
+  sudo cp ssldata/rootCA.pem /usr/local/share/ca-certificates/rootCA.crt
+  echo "Updating CA certificates..."
   sudo update-ca-certificates
 fi

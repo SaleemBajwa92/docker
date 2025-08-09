@@ -1,2 +1,3 @@
 #!/usr/bin/env bash
-d/n98-magerun2 db:dump --human-readable --stdout "$@"
+
+d/docker-compose exec -T db mysqldump -umagento -pmagento magento | sed -e 's/DEFINER[ ]*=[ ]*[^*]*\*/\*/' "$@"

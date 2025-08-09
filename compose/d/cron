@@ -1,16 +1,3 @@
 #!/usr/bin/env bash
 [ -z "$1" ] && echo "Please specify a service operation (start|stop|status|restart|reload|force-reload)" && exit
-
-if [ "$1" == "start" ]; then
-  # Create the .cron-enabled file when starting cron
-  d/cli touch /var/www/html/var/.cron-enabled
-fi
-
-if [ "$1" == "stop" ]; then
-  # Remove the .cron-enabled file when stopping cron
-  d/cli rm -f /var/www/html/var/.cron-enabled
-fi
-
-d/root service cron "$@"
-d/root touch /var/www/html/var/.setup_cronjob_status /var/www/html/var/.update_cronjob_status
-d/root chown app:app /var/www/html/var/.setup_cronjob_status /var/www/html/var/.update_cronjob_status
+d/docker-compose exec -u root phpfpm service cron "$@"

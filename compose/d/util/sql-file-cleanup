@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Check if the file is provided
+#if [ -z "$1" ]; then
+#    echo "Usage: $0 <sql-file>"
+#    exit 1
+#fi
+
+# Input file
+input_file="$1"
+
+echo "$input_file"
+
+# Check if the file exists
+#if [ ! -f "$input_file" ]; then
+#    echo "File $input_file not found!"
+#    exit 1
+#fi
+
+#Checking operating system
+./d/internal/check-mac-os
+
+status=$?
+
+# Check the exit status
+if [[ $status == 1 ]]; then
+  sed -i '' 's/DEFINER=[^*]*\*/\*/g' ${input_file}
+else
+  sed -i 's/DEFINER=[^*]*\*/\*/g' ${input_file}
+fi
+
+echo "Identifiers removed."

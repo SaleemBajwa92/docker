@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: d/setup-ssl-project [--no-trust] <domain>
+
+# Allow skipping trust import via flag or env var
+NO_TRUST=${NO_TRUST:-0}
+if [ "${1:-}" = "--no-trust" ]; then
+  NO_TRUST=1
+  shift
+fi
+
+if [ -z "${1:-}" ]; then
+  echo "Please specify a domain (ex. magento.test)"
+  exit 1
+fi
+
+DOMAIN_RAW="$1"
+DOMAIN="$(echo "$DOMAIN_RAW" | cut -d ':' -f1)"
+
+PROJECT_NAME="$(basename "$(pwd)")"
+CA_FILE_HOST="ssldata/rootCA.pem"
+NICKNAME="${PROJECT_NAME} Local Dev Root"
+
+echo "Ensuring nginx service is running..."
+d/docker-compose up -d nginx
+
+echo "Adding hosts entry if missing... (sudo may prompt)"
+if ! grep -q "[[:space:]]${DOMAIN}[[:space:]]*$" /etc/hosts; then
+  echo "127.0.0.1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+  echo "::1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+fi
+
+echo "Generating/Installing local CA and domain certificate..."
+# d/setup-ssl will auto-run d/setup-ssl-ca if CA is not present
+d/setup-ssl "$DOMAIN"
+
+# Ensure CA pem exists on host for trust import
+if [ ! -f "$CA_FILE_HOST" ]; then
+  echo "Copying mkcert root CA to host..."
+  docker cp "$(d/docker-compose ps -q nginx|awk '{print $1}')":/root/.local/share/mkcert/rootCA.pem "$CA_FILE_HOST"
+fi
+
+if [ "$NO_TRUST" -eq 0 ]; then
+  echo "Importing CA into user trust store (no prompts)..."
+  NSS_DB_DIR="$HOME/.pki/nssdb"
+  PWFILE="${NSSDB_PWFILE:-/dev/null}"
+  mkdir -p "$NSS_DB_DIR"
+  # Initialize with empty password if DB does not exist yet (non-interactive)
+  if [ ! -f "$NSS_DB_DIR/cert9.db" ]; then
+    certutil -N -d sql:"$NSS_DB_DIR" --empty-password 2>/dev/null || true
+  fi
+  # Remove any previous entry with same nickname, then add; use -f to avoid prompts
+  certutil -d sql:"$NSS_DB_DIR" -D -n "$NICKNAME" -f "$PWFILE" 2>/dev/null || true
+  if ! certutil -d sql:"$NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "$PWFILE" 2>/dev/null; then
+    echo "Note: Skipping NSS import (DB likely password-protected)."
+    echo "- To import non-interactively, set NSSDB_PWFILE to a file containing the NSS DB password."
+  fi
+else
+  echo "Skipping trust store import (--no-trust)."
+fi
+
+# If Snap Chromium NSS DB exists, import there too (no prompts)
+SNAP_NSS_DB_DIR="$HOME/snap/chromium/current/.pki/nssdb"
+if [ "$NO_TRUST" -eq 0 ] && [ -d "$SNAP_NSS_DB_DIR" ]; then
+  echo "Importing CA into Snap Chromium NSS DB (no prompts)..."
+  if [ ! -f "$SNAP_NSS_DB_DIR/cert9.db" ]; then
+    certutil -N -d sql:"$SNAP_NSS_DB_DIR" --empty-password 2>/dev/null || true
+  fi
+  certutil -d sql:"$SNAP_NSS_DB_DIR" -D -n "$NICKNAME" -f "${NSSDB_PWFILE:-/dev/null}" 2>/dev/null || true
+  certutil -d sql:"$SNAP_NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "${NSSDB_PWFILE:-/dev/null}" 2>/dev/null || true
+fi
+
+echo "Verifying HTTPS endpoint..."
+set +e
+curl -sS -I "https://${DOMAIN}/" --max-time 10 | head -n 1
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "Warning: HTTPS check failed. Ensure Chrome is restarted and HSTS is cleared if needed (chrome://net-internals/#hsts)."
+fi
+
+echo "SSL setup complete for ${DOMAIN}."

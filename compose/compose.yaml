@@ -1,171 +1,67 @@
-## Mark Shust's Docker Configuration for Magento
-## (https://github.com/markshust/docker-magento)
-##
-## Version 52.0.1
-
-## To use SSH, see https://github.com/markshust/docker-magento#ssh
-## Linux users, see https://github.com/markshust/docker-magento#linux
-
-## If you changed the default Docker network, you may need to replace
-## 172.17.0.1 in this file with the result of:
-## docker network inspect bridge --format='{{(index .IPAM.Config 0).Gateway}}'
-
 services:
-  app:
+  nginx:
     image: pointeger/magento-nginx:1.24.1
-    ports:
-      - "80:8000"
-      - "443:8443"
+    build:
+      context: .docker/nginx
+      dockerfile: Dockerfile
     volumes:
-      - ./src:/var/www/html
+      - ./src/:/var/www/html:ro
       - sockdata:/sock
       - ssldata:/etc/nginx/certs
-    #extra_hosts: &appextrahosts
-      ## Selenium support, replace "magento.test" with URL of your site
-      #- "magento.test:172.17.0.1"
-      ## Linux, uncomment for Xdebug capabilities:
-      #- "host.docker.internal:host-gateway"
-
+    depends_on:
+      - phpfpm
+  
   phpfpm:
     image: pointeger/magento-php:8.2
-    volumes:
-      - ./src:/var/www/html
-      - sockdata:/sock
-    env_file:
-      - env/phpfpm.env
-      - env/env.local
-
-  phpfpm-xdebug:
-    image: pointeger/magento-php-xdebug:8.2
-    volumes:
-      - ./src:/var/www/html
-      - sockdata:/sock
     environment:
-      - PHP_IDE_CONFIG=serverName=magento.test
-    env_file:
-      - env/xdebug.env
-      - env/env.local
+      - TZ=Asia/Karachi
+    volumes:
+      - ./src/:/var/www/html
+      - ./.docker/php/php.ini:/usr/local/etc/php/php.ini
+      - sockdata:/sock
     depends_on:
       - db
       - redis
-      - opensearch
+      - elasticsearch
 
   db:
-    image: mariadb:10.6
+    image: mariadb:10.6.18
+    environment:
+      - TZ=Asia/Karachi
     command:
       --max_allowed_packet=64M
       --optimizer_use_condition_selectivity=1
       --optimizer_switch="rowid_filter=off"
-#      --log_bin_trust_function_creators=1
-    ports:
-      - "3306:3306"
-    env_file: env/db.env
     volumes:
       - dbdata:/var/lib/mysql
 
-  ## If you wish to use MySQL, comment out the mariadb db image above and
-  ## uncomment this block.
-  #db:
-  #  image: mysql:8.4
-  #  command:
-  #    --max_allowed_packet=64M
-  #    --log_bin_trust_function_creators=1
-  #  ports:
-  #    - "3306:3306"
-  #  env_file: env/db.env
-  #  volumes:
-  #    - dbdata:/var/lib/mysql
-
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - 8085:8080
-
   redis:
-    image: valkey/valkey:8.1-alpine
-    ports:
-      - "6379:6379"
+    image: redis:7.2-alpine
 
-  ## If you wish to use Redis, comment out the redis image above and
-  ## uncomment this block.
-  #redis:
-  #  image: redis:7.2-alpine
-  #  ports:
-  #    - "6379:6379"
-
-  opensearch:
-    image: markoshust/magento-opensearch:2.12-0
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    env_file: env/opensearch.env
+  elasticsearch:
+#    container_name: albarak-mage-elasticsearch
+    image: markoshust/magento-elasticsearch:7.16-0
+    env_file: .docker/elasticsearch/.env
     environment:
-      - "discovery.type=single-node"
-      ## Avoid test failures due to small disks
-      ## More info at https://github.com/markshust/docker-magento/issues/488
-      - "cluster.routing.allocation.disk.threshold_enabled=false"
-      - "index.blocks.read_only_allow_delete"
-      ## Uncomment to set custom heap size to avoid memory errors
-      #- "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
-      ## Uncomment to increase the virtual memory map count
-      #- "max_map_count=262144"
-
-  ## If you wish to use Elasticsearch, comment out opensearch image above and
-  ## uncomment this block. Do the same in the composer.healthcheck.yaml file.
-  # Additionally, if you are performing the manual setup, you will need to
-  # update the d/setup command to use the $ES_HOST variable as the value for
-# the --elasticsearch-host argument passed to d/magento setup:install.
-  #elasticsearch:
-  #  image: markoshust/magento-elasticsearch:8.13-0
-  #  ports:
-  #    - "9200:9200"
-  #    - "9300:9300"
-  #  env_file: env/elasticsearch.env
-  #  environment:
-  #    - "discovery.type=single-node"
-  #    ## Avoid test failures due to small disks
-  #    ## More info at https://github.com/markshust/docker-magento/issues/488
-  #    - "cluster.routing.allocation.disk.threshold_enabled=false"
-  #    - "index.blocks.read_only_allow_delete"
-  #    ## Uncomment to set custom heap size to avoid memory errors
-  #    #- "ES_JAVA_OPTS=-Xms1g -Xmx1g"
-  #    ## Uncomment to increase the virtual memory map count
-  #    #- "max_map_count=262144"
-  #    ## Uncomment the line below if ElasticSearch fails to start and stops after ~150 seconds with the error "container for service "elasticsearch" is unhealthy".
-  #    #- "xpack.security.enabled=false"
-
-  rabbitmq:
-    image: markoshust/magento-rabbitmq:4.1-0
-    ports:
-      - "15672:15672"
-      - "5672:5672"
+        - "discovery.type=single-node"
+        ## Avoid test failures due to small disks
+        ## More info at https://github.com/markshust/docker-magento/issues/488
+        - "cluster.routing.allocation.disk.threshold_enabled=false"
+        - "index.blocks.read_only_allow_delete"
+        ## Uncomment to set custom heap size to avoid memory errors
+        - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+        ## Uncomment to increase the virtual memory map count
+        #- "max_map_count=262144"
+        ## Uncomment the line below if ElasticSearch fails to start and stops after ~150 seconds with the error "container for service "elasticsearch" is unhealthy".
+        - "xpack.security.enabled=false"
+        - "ELASTICSEARCH_HOST=elasticsearch"
+        # Disable geoip downloader to avoid failures(losing indices on the server)
+        - "ingest.geoip.downloader.enabled=false"
     volumes:
-      - rabbitmqdata:/var/lib/rabbitmq
-    env_file: env/rabbitmq.env
-
-  mailcatcher:
-    image: sj26/mailcatcher:v0.10.0
-    ports:
-      - "1080:1080"
-
-  ## Cloudflare tunnel support, uncomment to enable
-  #tunnel:
-  #  container_name: cloudflared-tunnel
-  #  image: cloudflare/cloudflared:latest
-  #  command: tunnel run
-  #  env_file: env/cloudflare.env
-
-  ## Blackfire support, uncomment to enable
-  #blackfire:
-  #  image: blackfire/blackfire:2
-  #  ports:
-  #    - "8307"
-  #  env_file: env/blackfire.env
+      - elasticsearchdata:/usr/share/elasticsearch/data/
 
 volumes:
-  appdata:
   dbdata:
-  rabbitmqdata:
   sockdata:
   ssldata:
+  elasticsearchdata:

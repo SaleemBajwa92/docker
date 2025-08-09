@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Check if the system is macOS
+if [[ "$(uname)" == "Darwin" ]]; then
+    exit 1  # True (macOS)
+else
+    exit 0  # False (not macOS)
+fi

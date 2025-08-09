@@ -1,2 +1,7 @@
 #!/usr/bin/env bash
-d/cli bash
+
+if [ $# -eq 0 ]; then
+    d/docker-compose exec phpfpm /bin/bash
+else
+    d/docker-compose exec phpfpm "$@"
+fi
