@@ -1,12 +1,46 @@
 services:
+  traefik:
+    image: traefik:v2.11
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.file.directory=/etc/traefik/dynamic
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ssldata:/certs:ro
+      - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    networks:
+      - pointeger
+    restart: unless-stopped
   nginx:
     volumes:
       - ./docker/nginx/conf/default-dev.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - "80:8000"
-      - "443:443"
     env_file:
       - ./docker/.env.local
+    networks:
+      - pointeger
+
+  varnish:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=pointeger"
+      - "traefik.http.services.magento.loadbalancer.server.port=6081"
+      - "traefik.http.routers.magento.rule=Host(`magento.test`,`magento2.test`)"
+      - "traefik.http.routers.magento.entrypoints=websecure"
+      - "traefik.http.routers.magento.tls=true"
+      - "traefik.http.routers.magento-http.rule=Host(`magento.test`,`magento2.test`)"
+      - "traefik.http.routers.magento-http.entrypoints=web"
+      - "traefik.http.routers.magento-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
     networks:
       - pointeger
 
@@ -17,7 +51,6 @@ services:
       - pointeger
 
   phpfpm-xdebug:
-#    container_name: albarak-mage-php-xdebug
     image: pointeger/magento-php-xdebug:8.2
     environment:
       - TZ=Asia/Karachi
@@ -43,10 +76,9 @@ services:
       - pointeger
 
   adminer:
-#    container_name: albarak-mage-adminer
     image: adminer
     ports:
-      - 8081:8080
+      - 8082:8080
     networks:
       - pointeger
 

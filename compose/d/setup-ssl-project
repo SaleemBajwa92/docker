@@ -1,14 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: d/setup-ssl-project [--no-trust] <domain>
+# Usage: d/setup-ssl-project [--no-trust] [--no-hosts] [--reset-nss] [--nss-pwfile PATH] <domain>
 
-# Allow skipping trust import via flag or env var
+# Defaults (can also be set via env)
 NO_TRUST=${NO_TRUST:-0}
-if [ "${1:-}" = "--no-trust" ]; then
-  NO_TRUST=1
-  shift
-fi
+NO_HOSTS=${NO_HOSTS:-0}
+RESET_NSS=${RESET_NSS:-0}
+NSSDB_PWFILE=${NSSDB_PWFILE:-}
+
+# Parse flags
+while [ $# -gt 0 ]; do
+  case "${1}" in
+    --no-trust)
+      NO_TRUST=1; shift ;; 
+    --no-hosts)
+      NO_HOSTS=1; shift ;;
+    --reset-nss)
+      RESET_NSS=1; shift ;;
+    --nss-pwfile)
+      [ $# -ge 2 ] || { echo "--nss-pwfile requires a path"; exit 2; }
+      NSSDB_PWFILE="$2"; shift 2 ;;
+    --)
+      shift; break ;;
+    -*)
+      echo "Unknown option: ${1}"; exit 2 ;;
+    *)
+      break ;;
+  esac
+done
 
 if [ -z "${1:-}" ]; then
   echo "Please specify a domain (ex. magento.test)"
@@ -25,10 +45,14 @@ NICKNAME="${PROJECT_NAME} Local Dev Root"
 echo "Ensuring nginx service is running..."
 d/docker-compose up -d nginx
 
-echo "Adding hosts entry if missing... (sudo may prompt)"
-if ! grep -q "[[:space:]]${DOMAIN}[[:space:]]*$" /etc/hosts; then
-  echo "127.0.0.1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
-  echo "::1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+if [ "$NO_HOSTS" -eq 0 ]; then
+  echo "Adding hosts entry if missing... (sudo may prompt)"
+  if ! grep -q "[[:space:]]${DOMAIN}[[:space:]]*$" /etc/hosts; then
+    echo "127.0.0.1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+    echo "::1 ${DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+  fi
+else
+  echo "Skipping /etc/hosts updates (--no-hosts)."
 fi
 
 echo "Generating/Installing local CA and domain certificate..."
@@ -46,6 +70,11 @@ if [ "$NO_TRUST" -eq 0 ]; then
   NSS_DB_DIR="$HOME/.pki/nssdb"
   PWFILE="${NSSDB_PWFILE:-/dev/null}"
   mkdir -p "$NSS_DB_DIR"
+  if [ "$RESET_NSS" -eq 1 ]; then
+    echo "Resetting user NSS DB to empty password (--reset-nss)."
+    rm -rf "$NSS_DB_DIR"
+    mkdir -p "$NSS_DB_DIR"
+  fi
   # Initialize with empty password if DB does not exist yet (non-interactive)
   if [ ! -f "$NSS_DB_DIR/cert9.db" ]; then
     certutil -N -d sql:"$NSS_DB_DIR" --empty-password 2>/dev/null || true
@@ -53,8 +82,23 @@ if [ "$NO_TRUST" -eq 0 ]; then
   # Remove any previous entry with same nickname, then add; use -f to avoid prompts
   certutil -d sql:"$NSS_DB_DIR" -D -n "$NICKNAME" -f "$PWFILE" 2>/dev/null || true
   if ! certutil -d sql:"$NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "$PWFILE" 2>/dev/null; then
-    echo "Note: Skipping NSS import (DB likely password-protected)."
-    echo "- To import non-interactively, set NSSDB_PWFILE to a file containing the NSS DB password."
+    echo "NSS DB appears password-protected. Please enter your NSS DB password to import the CA."
+    # If a password file wasn't provided, prompt the user securely
+    if [ -z "${NSSDB_PWFILE:-}" ]; then
+      read -r -s -p "NSS password: " __NSSPW; echo
+      PWFILE_TMP=$(mktemp)
+      printf '%s' "${__NSSPW}" > "$PWFILE_TMP"
+      chmod 600 "$PWFILE_TMP"
+      unset __NSSPW
+      if certutil -d sql:"$NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "$PWFILE_TMP" 2>/dev/null; then
+        : # success
+      else
+        echo "Failed to import CA into user NSS DB with provided password."
+      fi
+      rm -f "$PWFILE_TMP"
+    else
+      echo "Password file provided but import still failed."
+    fi
   fi
 else
   echo "Skipping trust store import (--no-trust)."
@@ -64,11 +108,30 @@ fi
 SNAP_NSS_DB_DIR="$HOME/snap/chromium/current/.pki/nssdb"
 if [ "$NO_TRUST" -eq 0 ] && [ -d "$SNAP_NSS_DB_DIR" ]; then
   echo "Importing CA into Snap Chromium NSS DB (no prompts)..."
+  if [ "$RESET_NSS" -eq 1 ]; then
+    echo "Resetting Snap Chromium NSS DB to empty password (--reset-nss)."
+    rm -rf "$SNAP_NSS_DB_DIR"
+    mkdir -p "$SNAP_NSS_DB_DIR"
+  fi
   if [ ! -f "$SNAP_NSS_DB_DIR/cert9.db" ]; then
     certutil -N -d sql:"$SNAP_NSS_DB_DIR" --empty-password 2>/dev/null || true
   fi
   certutil -d sql:"$SNAP_NSS_DB_DIR" -D -n "$NICKNAME" -f "${NSSDB_PWFILE:-/dev/null}" 2>/dev/null || true
-  certutil -d sql:"$SNAP_NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "${NSSDB_PWFILE:-/dev/null}" 2>/dev/null || true
+  if ! certutil -d sql:"$SNAP_NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "${NSSDB_PWFILE:-/dev/null}" 2>/dev/null; then
+    echo "Snap Chromium NSS DB appears password-protected. Please enter its NSS DB password to import the CA."
+    # Reuse previous interactive password if it exists; otherwise prompt
+    if [ -n "${PWFILE_TMP:-}" ] && [ -f "$PWFILE_TMP" ]; then
+      certutil -d sql:"$SNAP_NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "$PWFILE_TMP" 2>/dev/null || echo "Failed to import into Snap NSS DB with provided password."
+    else
+      read -r -s -p "Snap NSS password: " __SNAPNSSPW; echo
+      PWFILE_TMP2=$(mktemp)
+      printf '%s' "${__SNAPNSSPW}" > "$PWFILE_TMP2"
+      chmod 600 "$PWFILE_TMP2"
+      unset __SNAPNSSPW
+      certutil -d sql:"$SNAP_NSS_DB_DIR" -A -t "C,," -n "$NICKNAME" -i "$CA_FILE_HOST" -f "$PWFILE_TMP2" 2>/dev/null || echo "Failed to import into Snap NSS DB with provided password."
+      rm -f "$PWFILE_TMP2"
+    fi
+  fi
 fi
 
 echo "Verifying HTTPS endpoint..."

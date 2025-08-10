@@ -1,0 +1,13 @@
+tls:
+  certificates:
+    - certFile: /certs/nginx.crt
+      keyFile: /certs/nginx.key
+  stores:
+    default: {}
+
+http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true

@@ -10,6 +10,14 @@ services:
       - ssldata:/etc/nginx/certs
     depends_on:
       - phpfpm
+
+  varnish:
+    image: varnish:6.6
+    volumes:
+      - ./docker/varnish/default.vcl:/etc/varnish/default.vcl:ro
+    command: varnishd -F -f /etc/varnish/default.vcl -a :6081 -T localhost:6082 -s malloc,1G
+    depends_on:
+      - nginx
   
   phpfpm:
     image: pointeger/magento-php:8.2
@@ -39,7 +47,6 @@ services:
     image: redis:7.2-alpine
 
   elasticsearch:
-#    container_name: albarak-mage-elasticsearch
     image: markoshust/magento-elasticsearch:7.16-0
     env_file: ./docker/elasticsearch/.env
     environment:

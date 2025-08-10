@@ -6,7 +6,7 @@ import std;
 
 backend default {
     .host = "nginx";
-    .port = "8000";
+    .port = "8080";
     .first_byte_timeout = 600s;
 }
 
@@ -198,7 +198,7 @@ sub vcl_backend_response {
 
 sub vcl_deliver {
     if (resp.http.x-varnish ~ " ") {
-        set resp.http.X-Magento-Cache-Debug = "HIT";
+        set resp.http.X-Magento-Cache-Debug = "VARNISH HIT";
         set resp.http.Grace = req.http.grace;
     } else {
         set resp.http.X-Magento-Cache-Debug = "MISS";
