@@ -21,10 +21,10 @@ d/start --no-dev
 d/clinotty chmod u+x bin/magento
 rm -rf src && mkdir src
 
-echo "Adding Magento modules to Composer allow-plugins directive..."
-d/clinotty composer config --no-plugins allow-plugins.magento/magento-composer-installer true
-d/clinotty composer config --no-plugins allow-plugins.magento/inventory-composer-installer true
-d/clinotty composer config --no-plugins allow-plugins.laminas/laminas-dependency-plugin true
+#echo "Adding Magento modules to Composer allow-plugins directive..."
+#d/clinotty composer config --no-plugins allow-plugins.magento/magento-composer-installer true
+#d/clinotty composer config --no-plugins allow-plugins.magento/inventory-composer-installer true
+#d/clinotty composer config --no-plugins allow-plugins.laminas/laminas-dependency-plugin true
 
 echo "Running, Magento setup:install..."
 d/setup-install "${DOMAIN}"
