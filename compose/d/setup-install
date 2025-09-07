@@ -4,19 +4,19 @@ set -o errexit
 DOMAIN=${1:-magento.test}
 
 # shellcheck source=../env/db.env
-source env/db.env
+source ./docker/db/.env
 # shellcheck source=../env/elasticsearch.env
-source env/elasticsearch.env
+source ./docker/elasticsearch/.env
 # shellcheck source=../env/opensearch.env
-source env/opensearch.env
+source ./docker/opensearch/.env
 # shellcheck source=../env/magento.env
-source env/magento.env
+source ./docker/magento/.env
 # shellcheck source=../env/rabbitmq.env
-source env/rabbitmq.env
+source ./docker/rabbitmq/.env
 # shellcheck source=../env/redis.env
-source env/redis.env
+source ./docker/redis/.env
 
-d/clinotty d/magento setup:install \
+d/clinotty bin/magento setup:install \
   --db-host="$MYSQL_HOST" \
   --db-name="$MYSQL_DATABASE" \
   --db-user="$MYSQL_USER" \

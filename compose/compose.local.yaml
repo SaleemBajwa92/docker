@@ -83,6 +83,15 @@ services:
     networks:
       - pointeger
 
+  rabbitmq:
+    image: markoshust/magento-rabbitmq:4.1-0
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    env_file: ../docker/compose/docker/rabbitmq/.env
+    networks:
+      - pointeger
+
 networks:
   pointeger:
     driver: bridge
