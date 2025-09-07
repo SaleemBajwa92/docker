@@ -15,7 +15,7 @@ DOMAIN=${1:-magento.test}
 
 d/stop
 
-d/start --no-dev
+d/start
 [ $? != 0 ] && echo "Failed to start Docker services" && exit
 
 d/clinotty chmod u+x bin/magento
@@ -25,6 +25,7 @@ rm -rf src && mkdir src
 #d/clinotty composer config --no-plugins allow-plugins.magento/magento-composer-installer true
 #d/clinotty composer config --no-plugins allow-plugins.magento/inventory-composer-installer true
 #d/clinotty composer config --no-plugins allow-plugins.laminas/laminas-dependency-plugin true
+d/fixowns
 
 echo "Running, Magento setup:install..."
 d/setup-install "${DOMAIN}"
@@ -33,10 +34,10 @@ echo "Copying files from container to host after install..."
 d/copyfromcontainer --all
 
 echo "Forcing deploy of static content to speed up initial requests..."
-d/clinotty bin/magento setup:static-content:deploy -f
+d/magento setup:static-content:deploy -f
 
 echo "Re-indexing with Elasticsearch..."
-d/clinotty bin/magento indexer:reindex
+d/magento indexer:reindex
 
 echo "Setting basic URL and generating SSL certificate..."
 d/setup-domain "${DOMAIN}"
@@ -47,13 +48,13 @@ d/fixowns
 d/fixperms
 
 echo "Clearing the cache to apply updates..."
-d/clinotty bin/magento cache:flush
+d/magento cache:flush
 
 echo "Installing cron, run 'd/cron start' to enable..."
-d/clinotty bin/magento cron:install
+d/magento cron:install
 
 echo "Turning on developer mode..."
-d/clinotty bin/magento deploy:mode:set developer
+d/magento deploy:mode:set developer
 
 cp -r .vscode src/
 

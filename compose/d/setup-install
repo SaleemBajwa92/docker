@@ -16,7 +16,7 @@ source ./docker/rabbitmq/.env
 # shellcheck source=../env/redis.env
 source ./docker/redis/.env
 
-d/clinotty bin/magento setup:install \
+d/magento setup:install \
   --db-host="$MYSQL_HOST" \
   --db-name="$MYSQL_DATABASE" \
   --db-user="$MYSQL_USER" \
