@@ -88,7 +88,7 @@ services:
     ports:
       - "15672:15672"
       - "5672:5672"
-    env_file: ../docker/compose/docker/rabbitmq/.env
+    env_file: ./docker/rabbitmq/.env
     networks:
       - pointeger
 
